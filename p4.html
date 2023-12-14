@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python Programs</title>
+</head>
+
+<body>
+    <pre><code>
+import pandas as pd
+import numpy as np
+from numpy import log2 as log
+
+def find_entropy(df):
+    Class = df.columns[-1]
+    entropy = 0
+    values = df[Class].unique()
+    for value in values:
+        fraction = (df[Class] == value).mean()
+        entropy += -fraction * np.log2(fraction)
+    return entropy
+
+def find_entropy_attribute(df, attribute):
+    Class = df.columns[-1]
+    variables = df[attribute].unique()
+    entropy2 = 0
+    for variable in variables:
+        entropy = 0
+        for target_variable in df[Class].unique():
+            num = ((df[attribute] == variable) & (df[Class] == target_variable)).sum()
+            den = (df[attribute] == variable).sum()
+            fraction = num / (den + np.finfo(float).eps)
+            entropy += -fraction * log(fraction + np.finfo(float).eps)
+        fraction2 = den / len(df)
+        entropy2 += -fraction2 * entropy
+    return abs(entropy2)
+
+def find_winner(df):
+    IG = [find_entropy(df) - find_entropy_attribute(df, key) for key in df.columns[:-1]]
+    return df.columns[:-1][np.argmax(IG)]
+
+def build_tree(df):
+    Class = df.columns[-1]
+    node = find_winner(df)
+    tree = {node: {}}
+    for value in df[node].unique():
+        subtable = df[df[node] == value].reset_index(drop=True)
+        cl_values, counts = np.unique(subtable[Class], return_counts=True)
+        if len(counts) == 1:
+            tree[node][value] = cl_values[0]
+        else:
+            tree[node][value] = build_tree(subtable)
+    return tree
+
+def print_tree(tree, indent=''):
+    for attribute, sub_tree in tree.items():
+        if isinstance(sub_tree, dict):
+            print(indent + attribute)
+            print_tree(sub_tree, indent + '  ')
+        else:
+            print(indent + attribute + ': ' + sub_tree)
+
+df = pd.read_csv('id3.csv')
+
+tree = build_tree(df)
+
+print("Decision Tree:")
+print_tree(tree)
+
+test = {'Outlook': 'Sunny', 'Temp': 'Hot', 'Humidity': 'High', 'Wind': 'Weak'}
+
+def classify(test, tree, default=None):
+    node = next(iter(tree))
+    if test[node] in tree[node]:
+        result = tree[node][test[node]]
+        if isinstance(result, dict):
+            return classify(test, result)
+        return result
+    return default
+
+classification = classify(test, tree)
+print("Classification:", classification)
+
+    </code></pre>
+
+</body>
+
+</html>
